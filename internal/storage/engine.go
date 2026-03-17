@@ -66,6 +66,12 @@ func NewEngine(dataDir string) (*Engine, error) {
 	return e, nil
 }
 
+func (e *Engine) GetTable(name string) *Table {
+	e.mu.RLock()
+	defer e.mu.RUnlock()
+	return e.tables[name]
+}
+
 func (e *Engine) CreateTable(name string, columns []string, types []DataType) error {
 	e.mu.Lock()
 	defer e.mu.Unlock()

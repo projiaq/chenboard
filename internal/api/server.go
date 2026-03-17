@@ -107,10 +107,39 @@ func (s *Server) handleInsert(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Get table schema to know column types
+	table := s.engine.GetTable(req.Table)
+	if table == nil {
+		http.Error(w, "table not found", http.StatusNotFound)
+		return
+	}
+
 	for _, row := range req.Values {
-		values := make([]interface{}, 0, len(row))
-		for _, v := range row {
-			values = append(values, v)
+		values := make([]interface{}, len(table.Columns))
+
+		for i, col := range table.Columns {
+			val, exists := row[col.Name]
+			if !exists {
+				http.Error(w, "missing column: "+col.Name, http.StatusBadRequest)
+				return
+			}
+
+			// Convert timestamp strings to time.Time
+			if col.Type == storage.TypeTimestamp {
+				if strVal, ok := val.(string); ok {
+					t, err := time.Parse(time.RFC3339, strVal)
+					if err != nil {
+						http.Error(w, "invalid timestamp format: "+err.Error(), http.StatusBadRequest)
+						return
+					}
+					values[i] = t
+				} else {
+					http.Error(w, "timestamp must be a string", http.StatusBadRequest)
+					return
+				}
+			} else {
+				values[i] = val
+			}
 		}
 
 		if err := s.engine.Insert(req.Table, values); err != nil {
