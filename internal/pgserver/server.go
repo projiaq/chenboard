@@ -85,55 +85,55 @@ func (s *PgServer) handleConnection(conn net.Conn) {
 		msg, err := backend.Receive()
 		if err != nil {
 			if err != io.EOF {
-				s.sendError(backend, err.Error())
+				s.sendError(conn, err.Error())
 			}
 			return
 		}
 
 		switch m := msg.(type) {
 		case *pgproto3.Query:
-			s.handleQuery(backend, m.String)
+			s.handleQuery(conn, m.String)
 		case *pgproto3.Terminate:
 			return
 		}
 	}
 }
 
-func (s *PgServer) handleQuery(backend *pgproto3.Backend, query string) {
+func (s *PgServer) handleQuery(conn net.Conn, query string) {
 	query = strings.TrimSpace(query)
 
 	// Parse SQL
 	stmt, err := sqlparser.Parse(query)
 	if err != nil {
-		s.sendError(backend, fmt.Sprintf("SQL parse error: %v", err))
+		s.sendError(conn, fmt.Sprintf("SQL parse error: %v", err))
 		return
 	}
 
 	switch stmt := stmt.(type) {
 	case *sqlparser.Select:
-		s.handleSelect(backend, stmt)
+		s.handleSelect(conn, stmt)
 	case *sqlparser.Insert:
-		s.handleInsert(backend, stmt)
+		s.handleInsert(conn, stmt)
 	case *sqlparser.DDL:
-		s.handleDDL(backend, stmt)
+		s.handleDDL(conn, stmt)
 	default:
-		s.sendError(backend, "Unsupported query type")
+		s.sendError(conn, "Unsupported query type")
 	}
 }
 
-func (s *PgServer) handleSelect(backend *pgproto3.Backend, stmt *sqlparser.Select) {
+func (s *PgServer) handleSelect(conn net.Conn, stmt *sqlparser.Select) {
 	// Extract table name
 	tableName := sqlparser.String(stmt.From[0])
 
 	// Simple query: SELECT * FROM table
 	results, err := s.engine.Query(tableName, time.Time{}, time.Now().Add(100*365*24*time.Hour), []string{})
 	if err != nil {
-		s.sendError(backend, err.Error())
+		s.sendError(conn, err.Error())
 		return
 	}
 
 	if len(results) == 0 {
-		s.sendEmptyResult(backend)
+		s.sendEmptyResult(conn)
 		return
 	}
 
@@ -172,16 +172,16 @@ func (s *PgServer) handleSelect(backend *pgproto3.Backend, stmt *sqlparser.Selec
 	buf, _ = (&pgproto3.CommandComplete{CommandTag: []byte(fmt.Sprintf("SELECT %d", len(results)))}).Encode(buf)
 	buf, _ = (&pgproto3.ReadyForQuery{TxStatus: 'I'}).Encode(buf)
 
-	backend.Send(buf)
+	conn.Write(buf)
 }
 
-func (s *PgServer) handleInsert(backend *pgproto3.Backend, stmt *sqlparser.Insert) {
+func (s *PgServer) handleInsert(conn net.Conn, stmt *sqlparser.Insert) {
 	tableName := sqlparser.String(stmt.Table)
 
 	// Extract values
 	rows, ok := stmt.Rows.(sqlparser.Values)
 	if !ok {
-		s.sendError(backend, "Invalid INSERT syntax")
+		s.sendError(conn, "Invalid INSERT syntax")
 		return
 	}
 
@@ -196,7 +196,7 @@ func (s *PgServer) handleInsert(backend *pgproto3.Backend, stmt *sqlparser.Inser
 		}
 
 		if err := s.engine.Insert(tableName, values); err != nil {
-			s.sendError(backend, err.Error())
+			s.sendError(conn, err.Error())
 			return
 		}
 		insertCount++
@@ -204,12 +204,12 @@ func (s *PgServer) handleInsert(backend *pgproto3.Backend, stmt *sqlparser.Inser
 
 	buf, _ := (&pgproto3.CommandComplete{CommandTag: []byte(fmt.Sprintf("INSERT 0 %d", insertCount))}).Encode(nil)
 	buf, _ = (&pgproto3.ReadyForQuery{TxStatus: 'I'}).Encode(buf)
-	backend.Send(buf)
+	conn.Write(buf)
 }
 
-func (s *PgServer) handleDDL(backend *pgproto3.Backend, stmt *sqlparser.DDL) {
+func (s *PgServer) handleDDL(conn net.Conn, stmt *sqlparser.DDL) {
 	if stmt.Action != "create" {
-		s.sendError(backend, "Only CREATE TABLE is supported")
+		s.sendError(conn, "Only CREATE TABLE is supported")
 		return
 	}
 
@@ -239,27 +239,27 @@ func (s *PgServer) handleDDL(backend *pgproto3.Backend, stmt *sqlparser.DDL) {
 	}
 
 	if err := s.engine.CreateTable(tableName, columns, types); err != nil {
-		s.sendError(backend, err.Error())
+		s.sendError(conn, err.Error())
 		return
 	}
 
 	buf, _ := (&pgproto3.CommandComplete{CommandTag: []byte("CREATE TABLE")}).Encode(nil)
 	buf, _ = (&pgproto3.ReadyForQuery{TxStatus: 'I'}).Encode(buf)
-	backend.Send(buf)
+	conn.Write(buf)
 }
 
-func (s *PgServer) sendError(backend *pgproto3.Backend, message string) {
+func (s *PgServer) sendError(conn net.Conn, message string) {
 	buf, _ := (&pgproto3.ErrorResponse{
 		Severity: "ERROR",
 		Code:     "XX000",
 		Message:  message,
 	}).Encode(nil)
 	buf, _ = (&pgproto3.ReadyForQuery{TxStatus: 'I'}).Encode(buf)
-	backend.Send(buf)
+	conn.Write(buf)
 }
 
-func (s *PgServer) sendEmptyResult(backend *pgproto3.Backend) {
+func (s *PgServer) sendEmptyResult(conn net.Conn) {
 	buf, _ := (&pgproto3.CommandComplete{CommandTag: []byte("SELECT 0")}).Encode(nil)
 	buf, _ = (&pgproto3.ReadyForQuery{TxStatus: 'I'}).Encode(buf)
-	backend.Send(buf)
+	conn.Write(buf)
 }
