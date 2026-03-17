@@ -7,7 +7,8 @@ A lightweight, high-performance time-series database written in Go, inspired by 
 - **Columnar Storage**: Optimized for time-series data with columnar layout
 - **High-Performance Ingestion**: Fast data writes with in-memory buffering
 - **Compression**: Built-in zstd compression for efficient storage
-- **RESTful API**: Simple HTTP API for data operations
+- **Dual Protocol Support**: Both RESTful HTTP API and PostgreSQL wire protocol
+- **SQL Client Compatible**: Connect with qStudio, DBeaver, DataGrip, pgAdmin, etc.
 - **Concurrent Access**: Thread-safe operations with fine-grained locking
 - **Cross-Platform**: Runs on Linux, macOS, and Windows
 
@@ -22,8 +23,35 @@ go build -o tsdb ./cmd/tsdb
 ### Run Server
 
 ```bash
-./tsdb -port 6041 -data ./data
+./tsdb -data ./data -http-port 6041 -pg-port 5432
 ```
+
+The server starts two protocols:
+- **Port 5432**: PostgreSQL protocol (for SQL clients like qStudio)
+- **Port 6041**: HTTP API (for RESTful access)
+
+### Connect with qStudio
+
+1. Open qStudio
+2. Add Connection → PostgreSQL
+3. Host: `localhost`, Port: `5432`
+4. Connect and run SQL:
+
+```sql
+CREATE TABLE sensors (
+    ts TIMESTAMP,
+    temperature FLOAT,
+    humidity FLOAT,
+    device_id VARCHAR(50)
+);
+
+INSERT INTO sensors VALUES
+    ('2026-03-17 10:00:00', 23.5, 65.2, 'sensor001');
+
+SELECT * FROM sensors;
+```
+
+See [QSTUDIO_GUIDE.md](QSTUDIO_GUIDE.md) for detailed instructions.
 
 ### API Usage
 
