@@ -62,8 +62,8 @@ func (s *PgServer) handleConnection(conn net.Conn) {
 	switch startupMsg.(type) {
 	case *pgproto3.StartupMessage:
 		// Send authentication OK
-		buf := (&pgproto3.AuthenticationOk{}).Encode(nil)
-		buf = (&pgproto3.ReadyForQuery{TxStatus: 'I'}).Encode(buf)
+		buf, _ := (&pgproto3.AuthenticationOk{}).Encode(nil)
+		buf, _ = (&pgproto3.ReadyForQuery{TxStatus: 'I'}).Encode(buf)
 		_, err = conn.Write(buf)
 		if err != nil {
 			return
@@ -157,7 +157,7 @@ func (s *PgServer) handleSelect(backend *pgproto3.Backend, stmt *sqlparser.Selec
 		}
 	}
 
-	buf := (&pgproto3.RowDescription{Fields: fields}).Encode(nil)
+	buf, _ := (&pgproto3.RowDescription{Fields: fields}).Encode(nil)
 
 	// Send data rows
 	for _, row := range results {
@@ -165,12 +165,12 @@ func (s *PgServer) handleSelect(backend *pgproto3.Backend, stmt *sqlparser.Selec
 		for i, col := range columns {
 			values[i] = []byte(fmt.Sprintf("%v", row[col]))
 		}
-		buf = (&pgproto3.DataRow{Values: values}).Encode(buf)
+		buf, _ = (&pgproto3.DataRow{Values: values}).Encode(buf)
 	}
 
 	// Send command complete
-	buf = (&pgproto3.CommandComplete{CommandTag: []byte(fmt.Sprintf("SELECT %d", len(results)))}).Encode(buf)
-	buf = (&pgproto3.ReadyForQuery{TxStatus: 'I'}).Encode(buf)
+	buf, _ = (&pgproto3.CommandComplete{CommandTag: []byte(fmt.Sprintf("SELECT %d", len(results)))}).Encode(buf)
+	buf, _ = (&pgproto3.ReadyForQuery{TxStatus: 'I'}).Encode(buf)
 
 	backend.Send(buf)
 }
@@ -202,8 +202,8 @@ func (s *PgServer) handleInsert(backend *pgproto3.Backend, stmt *sqlparser.Inser
 		insertCount++
 	}
 
-	buf := (&pgproto3.CommandComplete{CommandTag: []byte(fmt.Sprintf("INSERT 0 %d", insertCount))}).Encode(nil)
-	buf = (&pgproto3.ReadyForQuery{TxStatus: 'I'}).Encode(buf)
+	buf, _ := (&pgproto3.CommandComplete{CommandTag: []byte(fmt.Sprintf("INSERT 0 %d", insertCount))}).Encode(nil)
+	buf, _ = (&pgproto3.ReadyForQuery{TxStatus: 'I'}).Encode(buf)
 	backend.Send(buf)
 }
 
@@ -243,23 +243,23 @@ func (s *PgServer) handleDDL(backend *pgproto3.Backend, stmt *sqlparser.DDL) {
 		return
 	}
 
-	buf := (&pgproto3.CommandComplete{CommandTag: []byte("CREATE TABLE")}).Encode(nil)
-	buf = (&pgproto3.ReadyForQuery{TxStatus: 'I'}).Encode(buf)
+	buf, _ := (&pgproto3.CommandComplete{CommandTag: []byte("CREATE TABLE")}).Encode(nil)
+	buf, _ = (&pgproto3.ReadyForQuery{TxStatus: 'I'}).Encode(buf)
 	backend.Send(buf)
 }
 
 func (s *PgServer) sendError(backend *pgproto3.Backend, message string) {
-	buf := (&pgproto3.ErrorResponse{
+	buf, _ := (&pgproto3.ErrorResponse{
 		Severity: "ERROR",
 		Code:     "XX000",
 		Message:  message,
 	}).Encode(nil)
-	buf = (&pgproto3.ReadyForQuery{TxStatus: 'I'}).Encode(buf)
+	buf, _ = (&pgproto3.ReadyForQuery{TxStatus: 'I'}).Encode(buf)
 	backend.Send(buf)
 }
 
 func (s *PgServer) sendEmptyResult(backend *pgproto3.Backend) {
-	buf := (&pgproto3.CommandComplete{CommandTag: []byte("SELECT 0")}).Encode(nil)
-	buf = (&pgproto3.ReadyForQuery{TxStatus: 'I'}).Encode(buf)
+	buf, _ := (&pgproto3.CommandComplete{CommandTag: []byte("SELECT 0")}).Encode(nil)
+	buf, _ = (&pgproto3.ReadyForQuery{TxStatus: 'I'}).Encode(buf)
 	backend.Send(buf)
 }
