@@ -17,7 +17,8 @@ type Response struct {
 }
 
 func main() {
-	fmt.Println("=== TSDB 测试客户端 ===\n")
+	fmt.Println("=== TSDB 测试客户端 ===")
+	fmt.Println()
 
 	// 1. 健康检查
 	fmt.Println("1. 检查服务健康状态...")
@@ -39,7 +40,8 @@ func main() {
 	if err := postJSON("/api/create", createTable); err != nil {
 		fmt.Printf("创建表失败: %v\n", err)
 	} else {
-		fmt.Println("✓ 表创建成功\n")
+		fmt.Println("✓ 表创建成功")
+		fmt.Println()
 	}
 
 	// 3. 插入数据
